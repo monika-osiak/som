@@ -41,54 +41,68 @@ head(NBA)
 colnames(NBA)
 ```
 
-## Basic SOM
-Weźmy pod uwagę wszystkie próby rzutów wykonane przez zawodników.
+## Podstawowa sieć - próby rzutów
+Weźmy pod uwagę wszystkie próby rzutów wykonane przez zawodników (rzuty wolne, za 2 oraz 3 punkty).
+
 ```{r basic SOM}
 NBA.measures1 <- c("FTA", "2PA", "3PA")
 NBA.SOM1 <- som(scale(NBA[NBA.measures1]), grid = somgrid(6, 4, "rectangular"))
 plot(NBA.SOM1)
 ```
+
 Nasze dane zostały przeskalowane i wyśrodkowane. Ustaliliśmy również rozmiar i układ siatki. Standardowy wykres SOM Kohonena tworzy wykresy kołowe dla reprezentowanych wektorów. Promień każdego klina odpowiada wielkości w danym wymiarze. Można tu dostrzec pierwsze wzorce - gracze są generalnie pogrupowani wg. tego, ile rzutów danego rodzaju wykonują.
 
-## Heatmap SOM
+```{r som1 learning plot}
+plot(NBA.SOM1, type="changes")
+```
+
+## Zliczanie zawodników
 Powyższy wykres to jedynie mapa danych, w której każda komórka wyświetla swój reprezentatywny wektor. Teraz, za pomoca mapy ciepła, chcemy przypisać każdego gracza do komórki. Poniższa mapa termiczna została stworzona na podstawie liczby graczy zaliczonych do każdej komórki.
-```{r heatmap}
-# reverse color ramp
+
+```{r colormap, include=FALSE}
 colors <- function(n, alpha = 1) {
     rev(heat.colors(n, alpha))
 }
+```
+
+```{r heatmap}
+
 plot(NBA.SOM1, type = "counts", palette.name = colors, heatkey = TRUE)
 ```
 
-## Plotting points
+## Mapowanie punktów według statystyk
 Zamiast typowego wykresu SOM, jak ten zaprezentowany na początku, możemy użyć mappingu.
 
-W tym przypadku każdy z graczy jest tak uwzględniony na mapie, jak blisko ich linii statystyk są reprezentatywne wektory.
+W tym przypadku każdy z graczy jest tak uwzględniony na mapie, jak blisko reprezentatywnych wektorów odpowiadających komórkom po prawej stronie są ich statystyki.
+
 ```{r plotting points}
 par(mfrow = c(1, 2))
 plot(NBA.SOM1, type = "mapping", pchs = 20, main = "Mapping Type SOM")
 plot(NBA.SOM1, main = "Default SOM Plot")
 ```
 
-## Toroidal SOMs
+## Sieci toroidalne
 Możemy zmienić rozmieszczenie komórek na mapie i zamiast prostokątnej siatki użyć torologicznej topologii. W przypadku siatki prostokątnej komórki na krawędziach (zwłaszcza w rogach) mają mniej sąsiadów niż komórki wewnętrzne, a przez to bardziej skrajne wartości są wypychane na krawędzie.
 
 ```{r toroidal soms}
 NBA.SOM2 <- som(scale(NBA[NBA.measures1]), grid = somgrid(6, 6, "hexagonal"), toroidal = TRUE)
-#NBA.SOM2 <- som(scale(NBA[NBA.measures1]), grid = somgrid(6, 6, "hexagonal"))
 par(mfrow = c(1, 2))
 plot(NBA.SOM2, type = "mapping", pchs = 20, main = "Mapping Type SOM")
 plot(NBA.SOM2, main = "Default SOM Plot")
 ```
 
-## Mapping Distance
+```{r som2 learning plot}
+plot(NBA.SOM2, type="changes")
+```
+
+## Mapowanie wzajemnych odległości komórek
 W tym przypadku komórki są tak pokolorowane, że możemy stwierdzić ich odległość do najbliższych sąsiadów - dzięki czemu wizualizujemy, jak daleko od siebie znajdują się cechy w przestrzeni o wyższej liczbie wymiarów. Można to trochę porównać do kolorowania mapy geograficznej.
 
 ```{r mapping distance}
 plot(NBA.SOM2, type = "dist.neighbours", palette.name = terrain.colors)
 ```
 
-## Supervised SOMs
+## Sieci nadzorowane
 Za pomocą nadzorowanych sieci Kohonena możemy robić klasyfikację. W dalszej części będziemy pracować z danymi, które mają więcej niż trzy wymiary, aby lepiej ukazać działanie SOM.
 
 ```{r supervised soms}
@@ -96,10 +110,10 @@ NBA.measures2 <- c("FTA", "FT", "2PA", "2P", "3PA", "3P", "AST", "ORB", "DRB",
     "TRB", "STL", "BLK", "TOV")
 ```
 
-## The xyf() Function
+## Klasyfikacja ze względu na pozycję na boisku funkcją xyf()
 Za pomocą tej funkcji będziemy chcieli dokonać klasyfikacji zawodników ze względu na ich pozycję na boisku. Losowo dzielimy dane na testowe i treningowe.
 
-```{r xyf function}
+```{r xyf function, include=FALSE}
 training_indices <- sample(nrow(NBA), 200)
 NBA.training <- scale(NBA[training_indices, NBA.measures2])
 NBA.testing <- scale(NBA[-training_indices, NBA.measures2], center = attr(NBA.training, 
@@ -107,26 +121,20 @@ NBA.testing <- scale(NBA[-training_indices, NBA.measures2], center = attr(NBA.tr
 ```
 ```{r}
 NBA.SOM3 <- xyf(NBA.training, classvec2classmat(NBA$Pos[training_indices]), grid = somgrid(13, 13, "hexagonal"), toroidal = TRUE, rlen = 100, xweight = 0.5)
-#NBA.SOM3 <- xyf(NBA.training, classvec2classmat(NBA$Pos[training_indices]), grid = somgrid(13, 13, "hexagonal"), rlen = 100)
 ```
 
 Parametr ```xweight``` pozwala ustalić wagę, jaką zmienne opisujące mają względem zmiennej opisywanej w algorytmie trenowania.
 
 ```{r}
-# !!! w poniższej linijce wywala błąd "data type not allowed"!!!
-# po znalezieniu błędu odkomentować obie linijki
-# PS: nie wiem jaki był błąd, bo ładnie mi wszystko przeszło :p ale stosowałam się dokładnie do tutorialu i poprawiłam też poprzednie linie gdy im czegoś brakowało.
-
 pos.prediction <- predict(NBA.SOM3, newdata = NBA.testing)
 table(NBA[-training_indices, "Pos"], pos.prediction$prediction)
 ```
 
-## Visualizing predictions: “Codes” SOMs
+## Wizualizacja przewidywań
 Teraz użyjemy do klasyfikacji wszystkich rekordów, a nie tylko zbioru treningowego. Zwiększamy istotność zmiennych opisujących.
 
 ```{r visualizing predictions}
 NBA.SOM4 <- xyf(scale(NBA[, NBA.measures2]), classvec2classmat(NBA[, "Pos"]), grid = somgrid(13, 13, "hexagonal"), toroidal = TRUE, rlen = 300, xweight = 0.7)
-#NBA.SOM4 <- xyf(scale(NBA[, NBA.measures2]), classvec2classmat(NBA[, "Pos"]), grid = somgrid(13, 13, "hexagonal"), rlen = 300)
 
 par(mfrow = c(1, 2))
 
@@ -134,17 +142,9 @@ plot(NBA.SOM4, type = "codes", main = c("Codes X", "Codes Y"))
 NBA.SOM4.hc <- cutree(hclust(dist(NBA.SOM4$codes$Y)), 5)
 add.cluster.boundaries(NBA.SOM4, NBA.SOM4.hc)
 ```
+
 Po lewej stronie mamy wizualizację statystyk graczy, a po prawej - predykcję ich pozycji na boisku. Nadal jednak nie mamy pojęcia o tym, jak wypadło grupowanie.
 
-```{r}
-# !!! błąd w poniższej linijce !!!
-# odkomentowąć obie po rozwiązaniu
-#NBA.SOM4.hc <- cutree(hclust(dist(NBA.SOM4$codes$Y)), 5)
-#add.cluster.boundaries(NBA.SOM4, NBA.SOM4.hc)
-# PS: tu tez przeszło (gdy przenioslam te dwie linijki vezposrednio pod plot, bo ewidentnie dogyczą rysowania tego wykresu)
-```
-
-<!-- ## Visualizing predictions: Customizing “Mapping” SOMs -->
 ```{r visualizing predictions2}
 bg.pallet <- c("red", "blue", "yellow", "purple", "green")
 
@@ -166,49 +166,13 @@ plot(NBA.SOM4, type = "mapping", pchs = 21, col = "black", bg = bg.pallet[match(
 legend("topright", legend = levels(NBA$Pos), text.col = bg.pallet, bty = "n", 
     inset = c(-0.03, 0))
 ```
+
 Każdy z pięciu kolorów reprezentuje jedną pozycję. Przezroczystość komórek mówi o tym, z jaką pewnością sieć sklasyfikowała tę komórkę. Kolory pojedynczych graczy (te małe kółka) reprezentują ich rzeczywistą pozycję.
 
-<!--```{r} -->
-#to juz prawdopodobnie jest niepotrzebne
-<!-- # make a vector of just the background colors for all map cells -->
-<!-- position.predictions <- classmat2classvec(predict(NBA.SOM4)$unit.predictions) -->
-<!-- base.color.vector <- bg.pallet[match(position.predictions, levels(NBA$Pos))] -->
-
-<!-- # set alpha to scale with maximum confidence of prediction -->
-<!-- bgcols <- c() -->
-<!-- max.conf <- apply(NBA.SOM4$codes$Y, 1, max) -->
-<!-- for (i in 1:length(base.color.vector)) { -->
-<!--     bgcols[i] <- adjustcolor(base.color.vector[i], max.conf[i]) -->
-<!-- } -->
-<!-- ``` -->
-
-<!-- ```{r visualizing predictions3} -->
-<!-- par(mar = c(0, 0, 0, 4), xpd = TRUE) -->
-<!-- plot(NBA.SOM4, type = "mapping", pchs = 21, col = "black", bg = bg.pallet[match(NBA$Pos,  -->
-<!--     levels(NBA$Pos))], bgcol = bgcols) -->
-
-<!-- legend("topright", legend = levels(NBA$Pos), text.col = bg.pallet, bty = "n",  -->
-<!--     inset = c(-0.03, 0)) -->
-
-<!--``` -->
-
 ## Podsumowanie i wnioski
-NA RAZIE PISZĘ TU TO CO TRZEBABY BYŁO ZROBIĆ:
 
-#1. sprawdzenie o co chodzi z błędem "unused arguments". Przez niego zakomentowałam niektóre linijki i pod spodem wrzuciłam ich wersje z usuniętymi problematycznymi argumentami (pytanie czy to czegoś nie zmienia?) - linia 65, 91, 104
-# 2. sprawdzenie o co chodzi z błędami w liniach 95, 112
-# 3. ostatnia sekcja cała zakomentowana, bo cała sypała błędami
+* Sieci Kohonena są w stanie dobrze dopasować się do skomplikowanych i wielowymiarowych danych, natomiast ich analiza może być bardziej wymagająca niż przy innych metodach służących do redukcji wymiarowości. Segmentacja danych wejściowych jest jednak wystarczajaco intuicyjna.
 
-PS:  zrobione, wszytsko przeszło już bez błędów
+* Algorytm nadaje się tylko do zbioróW danych, które rzeczywiście da się przedstawić w postaci dwuwymiarowej, i jednocześnie zawierających wyłącznie czyste dane liczbowe.
 
-4. zastanowić się, czy to wszystko nam potrzebne i czy czegoś nie usunąć/dodać z innego źródła
-
-5. sensownie podzielić na bloki
-
-6. ustawić flagę include=FALSE przy blokach, z których kodu nie chcemy pokazywać
-
-7. opisać kolejne kroki, co tam właściwie się dzieje
-
-8. dodać wstęp (opis co my właściwie badamy, co to za zbiór, źródło do tutoriala) i wnioski
-
-jeszcze może tu coś fajnego będzie: https://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/
+* Zastosowanie sieci toroidalnych nieznacznie zmniejszyło średnie odległości neuronów (zmiana wewnątrz tego samego rzędu wielkości) przy niemal identycznej ilości epok. Być może różnica byłaby bardziej widoczna przy większym zbiorze danych.
